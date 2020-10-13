@@ -1,4 +1,22 @@
 {
 	"name": "jnilla/joomla-cache-helper",
+	"type": "library",
+	"description": "Use Joomla cache support fast and easy",
+	"keywords": ["joomla","cache","helper"]],
+	"homepage": "https://github.com/jnilla/joomla-cache-helper",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Edric Navarro",
+			"email": "digitalcomputer2142@gmail.com",
+			"homepage": "https://github.com/jnilla",
+			"role": "Developer"
+		}
+	],
+	"autoload": {
+		"psr-4": {
+			"Jnilla\\Joomla\\": "src/"
+		}
+	}
 }
 
