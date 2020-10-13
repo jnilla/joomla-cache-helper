@@ -9,7 +9,7 @@ Install using Composer:
 ```
 $ php composer.phar require jnilla/joomla-cache-helper
 ```
-
+ 
 Load the library using the Composer autoloader:
 
 ```
@@ -41,13 +41,7 @@ Gets cache data.
 Array with these elements:
 
 * **status**:  ```true``` if cache is valid.
-* **data**: Cached data.
-
-**Cases of use:**
-
-* If cache is empty ```status``` will be ```false``` and ```data``` will be ```null```.
-* If cache is expired ```status``` will be ```false``` and ```data``` will be the old data.
-* If cache is updating and timeout is reached ```status``` will be ```false``` and ```data``` will be the old data
+* **data**: Cache data.
 
 **Examples:**
 
@@ -60,13 +54,13 @@ $response = CacheHelper::get('groupNameHere', 'idHere');
 // $response['data'] --> "Some data..."
 ```
 
-Assuming a previous operation sets the flag ```$updating = true```.
+Assuming the cache is flagged as updating.
 
 ```
 $response = CacheHelper::get('groupNameHere', 'idHere', 5);
 ```
 
-The ```get()``` method will return the new cache data as soon as the cache finish updating or it will wait up to 5 seconds and then return the old cache data if any.
+The ```get()``` method will return the new cache data as soon as the cache finish updating or it will wait up to 5 seconds and return an invalid status with ```null``` data.
 
 ### Method: set()
 
@@ -76,8 +70,8 @@ Stores data to cache.
 
 * **$group:** The cache data group.
 * **$id:** The cache data id.
-* **$data:** The data to store.
-* **$lifeTime:** (Optional) Time in seconds before cache expires. If not set Joomla cache time will be used as default. Min value 1 second, max value 5 years.
+* **$data:** The data to cache.
+* **$lifeTime:** (Optional) Time in seconds before cache expires. If not set Joomla cache time will be used as default. Values accepted 1 second and max 5 years (in seconds).
 * **$updating:** (Optional) If ```true``` cache will be flagged as updating and current data will remain untouch.
 
 **Return:**
@@ -86,7 +80,7 @@ Void.
 
 **Examples:**
 
-Assuming ```$response``` is the data to store to cache.
+Assuming ```$response``` is the data to cache.
 
 ```
 CacheHelper::set('groupNameHere', 'idHere', $response, 120);
@@ -105,7 +99,7 @@ function getMessages(){
 	if($response['status']) return $response['data'];
 	
 	// Flag cache as updating
-	CacheHelper::set('groupNameHere', 'idHere', null, null, true);
+	CacheHelper::set('groupNameHere', 'idHere', '', '', true);
 	
 	// Execute expensive operation. Takes around 200ms
 	$response = $externalService->getMessages();
@@ -117,7 +111,7 @@ function getMessages(){
 }
 ```
 
-The external service have a request rate limit of 10 calls per minute. The data returned by our function ```getMessages()``` is used to populate a list items in a website. This website have several hundred users and is requested more than 50 times per second.
+The external service have a request rate limit of 6 calls per minute. The data returned by our function ```getMessages()``` is used to populate a list items in a website. This website have several hundred users and is requested more than 50 times per second.
 
 Is clear that cache needs to be implemented to provide performance and prevent simultaneous requests to the external service.
 
@@ -138,11 +132,11 @@ During the update operation (200ms) the website was requested 10 more times:
 * Get data from cache.
 * Cache is flagged as updating.
 * Wait for cache to finish updating.
-* Cache finish updating.
+* Cache finished updating.
 * Return data.
 * The list is populated for each request.
 
-5secs later the website was requested 250 times:
+5 seconds later the website was requested 250 times:
 
 * Get data from cache.
 * Cache is valid.
@@ -151,7 +145,7 @@ During the update operation (200ms) the website was requested 10 more times:
 
 Cache expires after 10 seconds and the process repeats
 
-The cache life time of 10secs ensures the external service is requested no more than 10 times per minute. The timeout of 5 seconds covers most delays from the external service.
+The cache life time of 10 seconds ensures the external service is requested no more than 6 times per minute. The timeout of 5 seconds covers most delays from the external service.
 
 ## License
 
