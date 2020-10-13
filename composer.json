@@ -2,7 +2,7 @@
 	"name": "jnilla/joomla-cache-helper",
 	"type": "library",
 	"description": "Use Joomla cache support fast and easy",
-	"keywords": ["joomla","cache","helper"]],
+	"keywords": ["joomla","cache","helper"],
 	"homepage": "https://github.com/jnilla/joomla-cache-helper",
 	"license": "MIT",
 	"authors": [
