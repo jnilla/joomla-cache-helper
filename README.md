@@ -5,7 +5,7 @@ Use Joomla cache support fast and easy
 ## Installation
 
 Install using Composer:
-
+ 
 ```
 $ php composer.phar require jnilla/joomla-cache-helper
 ```
