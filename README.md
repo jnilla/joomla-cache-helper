@@ -92,7 +92,7 @@ For this example we will demonstrate how to avoid simultaneous expensive operati
 
 ```
 function getMessages(){
-	// If cache is updating wait up to 5 seconds
+	// Get data from cache. If cache is updating wait up to 5 seconds
 	$response = CacheHelper::get('groupNameHere', 'idHere', $response, 5);
 	
 	// If cache is valid return the data

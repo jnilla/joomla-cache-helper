@@ -17,7 +17,7 @@ class CacheHelper{
 	 *                                   boolean    status    False if cache item expired or doesn't exist
 	 *                                   mixed      data      Cached data
 	 */
-	static function getCache($group, $id){
+	static function get($group, $id){
 		// Get timer value
 		$timer = new JCache(array('caching' => true, 'defaultgroup' => 'JnillaTimer', 'lifetime' => 2*365*24*60));
 		$timer = $timer->get($group.$id);
@@ -43,7 +43,7 @@ class CacheHelper{
 	 *
 	 * return    void
 	 */
-	static function setCache($group, $id, $data, $lifeTime=null){
+	static function set($group, $id, $data, $lifeTime=null){
 		// Set default life time if needed
 		if(!isset($lifeTime)){
 			$lifeTime = JFactory::getConfig()->get('cachetime')*60; // Seconds
