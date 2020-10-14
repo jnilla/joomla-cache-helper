@@ -17,7 +17,6 @@
 		"psr-4": {
 			"Jnilla\\Joomla\\": "src/"
 		}
-	},
-	"minimum-stability": "dev"
+	}
 }
 
