@@ -1,6 +1,8 @@
 # joomla-cache-helper
 
-Use Joomla cache support fast and easy
+Use Joomla cache support fast and easy.
+
+This helper is build on top of the native Joomla cache support. We implemented a simpler API and added few extra features to make the helper practical. 
 
 ## Installation
 
@@ -16,104 +18,61 @@ Load the library using the Composer autoloader:
 require('vendor/autoload.php');
 ```
 
-## Usage
+## Basic Usage
 
-This helper is build on top of the native Joomla cache support. We implemented a simpler API and added few extra features to make the helper practical.
-
-### Declaration
+Declaration:
 
 ```
 use Jnilla\Joomla\CacheHelper as CacheHelper;
 ```
 
-### Method: get()
-
-Gets cache data.
-
-**Parameters:**
-
-* **$group:** The cache data group.
-* **$id:** The cache data id.
-* **$timeout:** (Optional) Max time in seconds to wait for cache to finish updating.
-
-**Return:**
-
-Array with these elements:
-
-* **status**:  ```true``` if cache is valid.
-* **data**: Cache data.
-
-**Examples:**
-
-Assuming cache is valid.
+Store data to cache:
 
 ```
-$response = CacheHelper::get('groupNameHere', 'idHere');
+CacheHelper::set('idHere', 'groupNameHere', $data);
+```
+
+Get data from cache:
+
+```
+$response = CacheHelper::get('idHere', 'groupNameHere');
 
 // $response['status'] --> true
 // $response['data'] --> "Some data..."
 ```
 
-Assuming the cache is flagged as updating.
+Cache using callbacks:
 
 ```
-$response = CacheHelper::get('groupNameHere', 'idHere', 5);
+$data = CacheHelper::callback(
+	'idHere',
+	'groupNameHere',
+	function(){return $externalService->getMessages();}
+	120
+);
 ```
+ 
+## Example
 
-The ```get()``` method will return the new cache data as soon as the cache finish updating or it will wait up to 5 seconds and return an invalid status with ```null``` data.
+The most practical way to work with this library is using the ```callback()``` method.
 
-### Method: set()
-
-Stores data to cache.
-
-**Parameters:**
-
-* **$group:** The cache data group.
-* **$id:** The cache data id.
-* **$data:** The data to cache.
-* **$lifeTime:** (Optional) Time in seconds before cache expires. If not set Joomla cache time will be used as default. Values accepted 1 second and max 5 years (in seconds).
-* **$updating:** (Optional) If ```true``` cache will be flagged as updating and current data will remain untouch.
-
-**Return:**
-
-Void.
-
-**Examples:**
-
-Assuming ```$response``` is the data to cache.
+For this example we will demonstrate how to avoid simultaneous calls to an expensive operations.
 
 ```
-CacheHelper::set('groupNameHere', 'idHere', $response, 120);
+$data = CacheHelper::callback(
+	'idHere',
+	'groupNameHere',
+	function(){return $externalService->getMessages();}
+	10,
+	5
+);
+
+printMessages($data['data']);
 ```
 
-The content of  ```$response``` is stored to cache and will be valid for 120 seconds.
+The ```$externalService``` API object have a request rate limit of 6 calls per minute. The data returned is used to print a list of messages in a website. 
 
-For this example we will demonstrate how to avoid simultaneous expensive operations.
-
-```
-function getMessages(){
-	// Get data from cache. If cache is updating wait up to 5 seconds
-	$response = CacheHelper::get('groupNameHere', 'idHere', $response, 5);
-	
-	// If cache is valid return the data
-	if($response['status']) return $response['data'];
-	
-	// Flag cache as updating
-	CacheHelper::set('groupNameHere', 'idHere', '', '', true);
-	
-	// Execute expensive operation. Takes around 200ms
-	$response = $externalService->getMessages();
-	
-	// Cache response
-	CacheHelper::set('groupNameHere', 'idHere', $response, 10);
-	
-	return $response;
-}
-```
-
-The external service have a request rate limit of 6 calls per minute. The data returned by our function ```getMessages()``` is used to populate a list items in a website. This website have several hundred users and is requested more than 50 times per second.
-
-Is clear that cache needs to be implemented to provide performance and prevent simultaneous requests to the external service.
+This website have several hundred users and is requested more than 50 times per second. It's clear that cache needs to be implemented to provide performance and prevent simultaneous requests to the external service.
 
 This is how the website will react to the users interaction:
 
@@ -123,9 +82,9 @@ Website is requested for the first time:
 * Cache is invalid.
 * Cache gets flagged as updating.
 * Expensive operation is executed and takes 200ms to finish.
-* Operation result data is stored to cache with a life time of 10secs.
+* Operation result data is stored to cache with a life time of 10 seconds.
 * Return data.
-* The list is populated.
+* Print list of messages.
 
 During the update operation (200ms) the website was requested 10 more times:
 
@@ -134,18 +93,18 @@ During the update operation (200ms) the website was requested 10 more times:
 * Wait for cache to finish updating.
 * Cache finished updating.
 * Return data.
-* The list is populated for each request.
+* Print list of messages (for each request).
 
 5 seconds later the website was requested 250 times:
 
 * Get data from cache.
 * Cache is valid.
 * Return data.
-* The list is populated for each request.
+* Print list of messages (for each request).
 
-Cache expires after 10 seconds and the process repeats
+Cache expires after 10 seconds and the process repeats.
 
-The cache life time of 10 seconds ensures the external service is requested no more than 6 times per minute. The timeout of 5 seconds covers most delays from the external service.
+The cache life time of 10 seconds ensures the external service is requested no more than 6 times per minute. The timeout of 5 seconds covers most delays that may happen while requesting the external service.
 
 ## License
 
