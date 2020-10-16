@@ -56,7 +56,7 @@ $data = CacheHelper::callback(
 
 The most practical way to work with this library is using the ```callback()``` method.
 
-For this example we will demonstrate how to avoid simultaneous calls to an expensive operations.
+For this example we will demonstrate how to avoid simultaneous calls to an expensive operation.
 
 ```
 $data = CacheHelper::callback(
