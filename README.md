@@ -9,7 +9,7 @@ This helper is build on top of the native Joomla cache support. We implemented a
 Install using Composer:
  
 ```
-$ php composer.phar require jnilla/joomla-cache-helper
+$ composer require jnilla/joomla-cache-helper
 ```
  
 Load the library using the Composer autoloader:
