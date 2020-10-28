@@ -10,19 +10,17 @@ class CacheHelper{
 	/**
 	 * Cache by callback
 	 *
-	 * @param    string     $id           Cache item id
-	 * @param    string     $group        Cache group name
-	 * @param    closure    $callback     Use an anonymous function to wrap the code to execute and
-	 *                                    return the data to cache.
-	 *                                    Example: function(){return //Your code here}
-	 * @param    integer    $lifeTime     (Optional) Time in seconds before cache expires.
+	 * @param    string      $id          Cache item id
+	 * @param    string      $group       Cache group name
+	 * @param    callable    $callback    Callback reference
+	 * @param    integer     $lifeTime    (Optional) Time in seconds before cache expires.
 	 *                                    If not set Joomla cache time will be used as default.
 	 *                                    Range goes from 1 second to 5 years (in seconds).
-	 * @param    integer    $timeout      (Optional) Max time in seconds to wait for cache to finish updating
+	 * @param    integer     $timeout     (Optional) Max time in seconds to wait for cache to finish updating
 	 *
 	 * @return    array      Return Array:
-	 *                          boolean    status    False if cache item expired or doesn't exist
-	 *                          mixed      data      Cache data
+	 *                           boolean    status    False if cache item expired or doesn't exist
+	 *                           mixed      data      Cache data
 	 */
 	static function callback($id, $group, $callback, $lifeTime = null, $timeout = null){
 		// Get cache

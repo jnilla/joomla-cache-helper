@@ -7,11 +7,11 @@ This helper is build on top of the native Joomla cache support. We implemented a
 ## Installation
 
 Install using Composer:
- 
+
 ```
 $ composer require jnilla/joomla-cache-helper
 ```
- 
+
 Load the library using the Composer autoloader:
 
 ```
@@ -29,32 +29,35 @@ use Jnilla\Joomla\CacheHelper as CacheHelper;
 Store data to cache:
 
 ```
-CacheHelper::set('idHere', 'groupNameHere', $data);
+CacheHelper::set('idHere', 'groupNameHere', 'Lorem ipsum');
 ```
 
 Get data from cache:
 
 ```
-$response = CacheHelper::get('idHere', 'groupNameHere');
+$cache = CacheHelper::get('idHere', 'groupNameHere');
 
-// $response['status'] --> true
-// $response['data'] --> "Some data..."
+// $cache['status'] --> true
+// $cache['data'] --> "Lorem ipsum"
 ```
 
 Cache using callbacks:
 
 ```
-$data = CacheHelper::callback(
+$cache = CacheHelper::callback(
 	'idHere',
 	'groupNameHere',
-	function(){return $externalService->getMessages();}
+	function(){return 'Lorem ipsum';}
 	120
 );
+
+// $cache['status'] --> true
+// $cache['data'] --> "Lorem ipsum"
 ```
- 
+
 ## Example
 
-The most practical way to work with this library is using the ```callback()``` method.
+The most practical way to work with this library is using the ```callback``` method.
 
 For this example we will demonstrate how to avoid simultaneous calls to an expensive operation.
 
