@@ -109,7 +109,7 @@ class CacheHelper{
 		$cache1->store($lifeTime, "CacheHelper-Life-Time-$group-$id");
 		
 		// Get Joomla cache instance with custom lifetime
-		$cache2 = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => $lifetime/60));
+		$cache2 = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => $lifeTime/60));
 		
 		// Store data
 		$cache2->store($data, $id);
