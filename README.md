@@ -1,6 +1,6 @@
 # joomla-cache-helper
 
-Use Joomla cache support fast and easy.
+Joomla cache facade for easier usage.
 
 This helper is build on top of the native Joomla cache support. We implemented a simpler API and added few extra features to make the helper practical. 
 
@@ -29,7 +29,7 @@ use Jnilla\Joomla\CacheHelper as CacheHelper;
 Store data to cache:
 
 ```
-CacheHelper::set('idHere', 'groupNameHere', 'Lorem ipsum');
+CacheHelper::set('idHere', 'groupNameHere', 'Some string data here');
 ```
 
 Get data from cache:
@@ -37,77 +37,112 @@ Get data from cache:
 ```
 $cache = CacheHelper::get('idHere', 'groupNameHere');
 
-// $cache['status'] --> true
-// $cache['data'] --> "Lorem ipsum"
+// $cache var dump
+array (size=4)
+  'isUndefined' => boolean false
+  'isStale' => boolean false
+  'isUpdating' => boolean false
+  'data' => string 'Some string data here' (length=0)
 ```
 
-Cache using callbacks:
+The proxy function:
+
+```
+$cache = CacheHelper::proxy(
+	'idHere', // Id
+	'groupNameHere', // Group
+	function(){return 'Some string data here';}, // Callback that returns the data to cache
+	6, // Lifetime
+	true, // Wait if updating
+	15, // Max wait time
+	true // Wait if undefined
+);
+
+// $cache var dump
+array (size=4)
+  'isUndefined' => boolean false
+  'isStale' => boolean false
+  'isUpdating' => boolean false
+  'data' => string 'Some string data here' (length=0)
+```
+
+The most practical way to work with this library is using the `proxy` function.
+
+This functions works as 2 in 1 intermediary that get and updates the cache item automatically if needed. 
+
+How it works:
+
+* If the cache item is not stale the function returns the cache item.
+* If the cache item is stale the function executes de callback, store the result in the cache and returns the updated cache item.
+
+Example with remote data:
 
 ```
 $cache = CacheHelper::callback(
-	'idHere',
-	'groupNameHere',
-	function(){return 'Lorem ipsum';}
-	120
+	'idHere', // Id
+	'groupNameHere', // Group
+	function(){return file_get_contents('https://jsonplaceholder.typicode.com/todos');}, // Callback that returns the data to cache
+	6, // Lifetime
+	true, // Wait if updating
+	15, // Max wait time
+	true // Wait if undefined
 );
 
-// $cache['status'] --> true
-// $cache['data'] --> "Lorem ipsum"
+// $cache var dump
+array (size=4)
+  'isUndefined' => boolean false
+  'isStale' => boolean false
+  'isUpdating' => boolean false
+  'data' => string '{some JSON code from that source}' (length=0)
 ```
 
-## Example
+The lifetime is the time before a cache item is considered stale and needs to be updated.
 
-The most practical way to work with this library is using the ```callback``` method.
+For this example the remote data is requested only 10 times per minute because of the lifetime value of 6 seconds. This is usefull if we are working with remote APIs that are bound to rate limits.
 
-For this example we will demonstrate how to avoid simultaneous calls to an expensive operation.
+## Mechanism
 
-```
-$data = CacheHelper::callback(
-	'idHere',
-	'groupNameHere',
-	function(){return $externalService->getMessages();}
-	10,
-	5
-);
+There is a blocking and non-blocking mechanism that is useful for certain cases of use.
 
-printMessages($data['data']);
-```
+The methods `get` and `proxy` share the following arguments:
 
-The ```$externalService``` API object have a request rate limit of 6 calls per minute. The data returned is used to print a list of messages in a website. 
+* @param boolean **$waitIfUpdating:** Force current operation to wait if the updating flag is true.
+* @param integer **$maxWait:** Max time in seconds to wait if updating flag is true.
+* @param boolean **$waitIfUndefined:** Force current operation to wait if the updating flag is true and current cache item is undefined (doesn't exist).
 
-This website have several hundred users and is requested more than 50 times per second. It's clear that cache needs to be implemented to provide performance and prevent simultaneous requests to the external service.
+**Case 1 - Blocking Mechanism:**
 
-This is how the website will react to the users interaction:
+5 users request remote data using the `proxy` function at the same time for the first time (meaning there is no previous cache item).
 
-Website is requested for the first time:
+If `$waitIfUpdating` is `true` the first user to use the `proxy` function triggers the `isUpdading` flag and everyone gets to wait for the remote fetch operation to finish. After this, everyone gets the same data at the same time.
 
-* Get data from cache.
-* Cache is invalid.
-* Cache gets flagged as updating.
-* Expensive operation is executed and takes 200ms to finish.
-* Operation result data is stored to cache with a life time of 10 seconds.
-* Return data.
-* Print list of messages.
+**Case 2 - Blocking Mechanism:**
 
-During the update operation (200ms) the website was requested 10 more times:
+5 users request remote data using the `proxy` function at the same time for the first time (meaning there is no previous cache item).
 
-* Get data from cache.
-* Cache is flagged as updating.
-* Wait for cache to finish updating.
-* Cache finished updating.
-* Return data.
-* Print list of messages (for each request).
+If `$waitIfUpdating` is `false` and `$waitIfUndefined` is `true` the first user to use the `proxy` function triggers the `isUpdading`  flag and everyone gets to wait for the remote fetch operation to finish. After this, everyone gets the same data at the same time.
 
-5 seconds later the website was requested 250 times:
+This case is useful if you don't want to return an empty cache item the firt time the remote data is requested.
 
-* Get data from cache.
-* Cache is valid.
-* Return data.
-* Print list of messages (for each request).
+**Case 3 - Non-Blocking Mechanism:**
 
-Cache expires after 10 seconds and the process repeats.
+5 users request remote data using the `proxy` function at the same time for the first time (meaning there is no previous cache item).
 
-The cache life time of 10 seconds ensures the external service is requested no more than 6 times per minute. The timeout of 5 seconds covers most delays that may happen while requesting the external service.
+If `$waitIfUpdating` is `false` and `$waitIfUndefined` is `false` the first user to use the `proxy` function triggers the `isUpdading` flag and only this person gets to wait for the remote fetch operation to finish. Everyone else gets an empty cache item the same time.
+
+This case is useful if you don't want to lock almost everyone on a waiting period the firt time the remote data is requested and it doens't matter if the cache item is empty for some users.
+
+This behavior helps to aliviate server RAM usage because requests/CPU Threads live shorter.
+
+**Case 4 - Non-Blocking Mechanism:**
+
+5 users request remote data using the `proxy` function at the same time but there is a previous cache item that is stale.
+
+If `$waitIfUpdating` is `false` the first user to use the `proxy` function triggers the `isUpdading` flag and only this person gets to wait for the remote fetch operation to finish. Everyone else get thre previous stale cache item at the same time.
+
+This case is useful if you don't want to lock almost everyone on a waiting period the firt time the remote data is requested and it doens't matter some users get the previos stale cache item.
+
+This behavior helps to aliviate server RAM usage because requests/CPU Threads live shorter but bandwith may be wasted is stale data is useless.
 
 ## License
 
