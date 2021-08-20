@@ -8,137 +8,224 @@ use Joomla\CMS\Cache\Cache as JCache;
 
 class CacheHelper{
 	/**
-	 * Cache by callback
+	 * Proxy fuction to get a cache item or update its content using a callback to finally get it's content in either case
 	 *
-	 * @param    string      $id          Cache item id
-	 * @param    string      $group       Cache group name
-	 * @param    callable    $callback    Callback reference
-	 * @param    integer     $lifeTime    (Optional) Time in seconds before cache expires.
-	 *                                    If not set Joomla cache time will be used as default.
-	 *                                    Range goes from 1 second to 5 years (in seconds).
-	 * @param    integer     $timeout     (Optional) Max time in seconds to wait for cache to finish updating
+	 * @param    string      $id                Cache item id
+	 * @param    string      $group             Cache group name
+	 * @param    callable    $callback          Callback function that must return the data to store
+	 * @param    integer     $lifetime          Time in second before cache item is flagged as stale. If value
+	 *                                          is null Joomla global configuration cache time will be used instead.
+	 * @param    boolean     $waitIfUpdating    Force current operation to wait if the updating flag is true
+	 * @param    integer     $maxWait           Max time in seconds to wait if updating flag is true
+	 * @param    boolean     $waitIfUndefined    Force current operation to wait if the updating flag is true
+	 *                                           and current cache item is undefined (doesn't exist).
 	 *
-	 * @return    array      Return Array:
-	 *                           boolean    status    False if cache item expired or doesn't exist
-	 *                           mixed      data      Cache data
+	 * @return   array       Array with cache data and some flags
 	 */
-	static function callback($id, $group, $callback, $lifeTime = null, $timeout = null){
-		// Get cache
-		$data = CacheHelper::get($id, $group, $timeout);
-		
-		// Return data if cache is valid
-		if($data['status']) return $data;
-		
+	static function proxy($id, $group, $callback, $lifetime = null, $waitIfUpdating = true, $maxWait = 3, $waitIfUndefined = true){
+		// Get cached data
+		$data = CacheHelper::get($id, $group, $waitIfUpdating, $maxWait, $waitIfUndefined);
+
+		// Return data if cache item is defined and is not stale
+		if(!$data['isUndefined'] && !$data['isStale']) return $data;
+
+		// Check if we can return data while updating
+		if(self::getUpdatingFlag($id, $group)){
+			// Return data if $waitIfUpdating or $waitIfUndefined are false
+			if((!$waitIfUpdating || !$waitIfUndefined)) return $data;
+		}
+
 		// Flag cache as updating
-		self::updating($id, $group, true);
-		
-		// Execute expensive operation
+		self::setUpdatingFlag($id, $group, true);
+
+		// Execute callback (AKA expensive operation)
 		$data = $callback();
-		
-		// Cache data
-		CacheHelper::set($id, $group, $data, $lifeTime);
-		
-		// Return data
-		return CacheHelper::get($id, $group, $timeout);;
-	}
-	
-	/**
-	 * Gets data stored in the Joomla cache
-	 *
-	 * @param    string     $id         Cache item id
-	 * @param    string     $group      Cache group name
-	 * @param    integer    $timeout    (Optional) Max time in seconds to wait for cache to finish updating.
-	 *                                  Range goes from 0 seconds to 5 years (in seconds).
-	 *
-	 * @return    array      Return Array:
-	 *                          boolean    status    False if cache item expired or doesn't exist
-	 *                          mixed      data      Cache data
-	 */
-	static function get($id, $group, $timeout = 2){
-		// Get Joomla cache instance with 5 years lifetime
-		$cache1 = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
-		
-		// Apply a delay if cache is updating
-		if(self::updating($id, $group)){
-			for ($i = 0; $i <= $timeout*10; $i++) {
-				usleep(100000);
-				// Check if cache updating finished
-				if(!self::updating($id, $group)) break;
-			}
-			// Set updating flag to false
-			self::updating($id, $group, false);
-		}
-		
-		// Get life time value
-		$lifeTime = intval($cache1->get("CacheHelper-Life-Time-$group-$id"));
-		if($lifeTime < 1) return array('status' => false);
-		
-		// Get Joomla cache instance with custom lifetime
-		$cache2 = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => $lifeTime/60));
-		
-		// Check if cache exist
-		if($cache2->contains($id)){
-			$data = $cache2->get($id);
-			return array('status' => true, 'data' => $data);
-		}
-		
-		// Return default
-		return array('status' => false);
+
+		// Set cache data
+		CacheHelper::set($id, $group, $data, $lifetime);
+
+		// Return cache item
+		return CacheHelper::get($id, $group, $waitIfUpdating, $maxWait, $waitIfUndefined);
 	}
 
 	/**
-	 * Store/update data in the Joomla cache
+	 * Get the cache item
+	 *
+	 * @param    string      $id                 Cache item id
+	 * @param    string      $group              Cache group name
+	 * @param    boolean     $waitIfUpdating     Force current operation to wait if the updating flag is true
+	 * @param    integer     $maxWait            Max time in seconds to wait if updating flag is true
+	 * @param    boolean     $waitIfUndefined    Force current operation to wait if the updating flag is true
+	 *                                           and current cache item is undefined (doesn't exist).
+	 *
+	 * @return   array       Array with cache data and some flags
+	 */
+	static function get($id, $group, $waitIfUpdating = true, $maxWait = 3, $waitIfUndefined = true){
+		// Define default cache item structure
+		$cacheItem = [
+			'isUndefined' => true,
+			'isStale' => false,
+			'isUpdating' => false,
+			'data' => ''
+		];
+
+		// If updating flag is true apply a delay if required
+		// Note: Don't add code before this statement because its values may change after wait time.
+		if(($waitIfUpdating || ($waitIfUndefined && self::isUndefined($id, $group))) && self::getUpdatingFlag($id, $group)){
+			$startTime = microtime(true); // DEBUG
+			// YOUR CODE HERE
+			for ($i = 0; $i <= $maxWait*10; $i++){
+				usleep(100000);
+				if(!self::getUpdatingFlag($id, $group)) break;
+			}
+			// If max wait time is reached force updating flag to false
+			self::setUpdatingFlag($id, $group, false);
+		}
+
+		// Get Joomla cache instance to store lifetime variable with a lifetime of 5 years
+		$cacheLifetime = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
+
+		// Get lifetime
+		$lifetime = intval($cacheLifetime->get("CacheHelper-Lifetime-$group-$id"));
+
+		// Get Joomla cache instance to store the dummy data with a custom lifetime
+		$cacheDummyData = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => $lifetime/60));
+
+		// If cache item is defined and dummy data doen't exist then considered the cache item as stale.
+		// Note: Something that doesn't exist can't be considered as stale
+		if(!self::isUndefined($id, $group) && !$cacheDummyData->contains("CacheHelper-DummyData-$group-$id")) $cacheItem['isStale'] = true;
+
+		// Save cache data if exist
+		if(!self::isUndefined($id, $group)){
+			// Get Joomla cache instance to store the data with a lifetime of 5 years
+			$cacheData = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
+
+			// Save cache data
+			$cacheItem['data'] = $cacheData->get($id);
+		}
+
+		// Save undefined flag
+		$cacheItem['isUndefined'] = self::isUndefined($id, $group);
+
+		// Save updating flag value
+		$cacheItem['isUpdating'] = self::getUpdatingFlag($id, $group);
+
+		return $cacheItem;
+	}
+
+	/**
+	 * Set cache item data
 	 *
 	 * @param    string     $id          Cache item id
 	 * @param    string     $group       Cache group name
-	 * @param    mixed      $data        Data to cache
-	 * @param    integer    $lifeTime    (Optional) Time in seconds before cache expires.
-	 *                                   If not set Joomla cache time will be used as default.
-	 *                                   Range goes from 1 second to 5 years (in seconds).
-	 *
+	 * @param    string     $data        Data to cache (String only)
+	 * @param    integer    $lifetime    Time in second before cache item is flagged as stale. If value
+	 *                                   is null Joomla global configuration cache time will be used instead.
 	 * @return    void
 	 */
-	static function set($id, $group, $data, $lifeTime = null){
-		// Get Joomla cache instance with 5 years lifetime
-		$cache1 = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
-		
+	static function set($id, $group, $data, $lifetime = null){
+		// Check data argument
+		if(!is_string($data)) throw new \InvalidArgumentException('Argument $data must be string type');
+
+		// Get Joomla cache instance to store lifetime variable with a lifetime of 5 years
+		$cacheLifetime = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
+
 		// Set default life time if needed
-		if(!isset($lifeTime)) $lifeTime = JFactory::getConfig()->get('cachetime')*60; // Seconds
-		
-		// Store life time
-		$cache1->store($lifeTime, "CacheHelper-Life-Time-$group-$id");
-		
-		// Get Joomla cache instance with custom lifetime
-		$cache2 = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => $lifeTime/60));
-		
+		if(!isset($lifetime)) $lifetime = JFactory::getConfig()->get('cachetime')*60; // Seconds
+
+		// Store lifetime
+		$cacheLifetime->store($lifetime, "CacheHelper-Lifetime-$group-$id");
+
+		// Get Joomla cache instance to store the dummy data with a custom lifetime
+		// This is used to define if cache item is stale or not without destroying previous cached data
+		$cacheDummyData = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => $lifetime/60));
+
+		// Store the dummy data
+		$cacheDummyData->store('dummy', "CacheHelper-DummyData-$group-$id");
+
+		// Get Joomla cache instance to store the data with a lifetime of 5 years
+		$cacheData = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
+
 		// Store data
-		$cache2->store($data, $id);
-		
+		$cacheData->store($data, $id);
+
 		// Set updating flag to false
-		self::updating($id, $group, false);
+		self::setUpdatingFlag($id, $group, false);
 	}
-	
+
 	/**
-	 * Flag cache as updating
+	 * Set the cache item updating flag
 	 *
 	 * @param    string     $id       Cache item id
 	 * @param    string     $group    Cache group name
-	 * @param    boolean    $flag     (Option) If true cache will be flagged as updating.
-	 *                                If not set current value will be returned.
+	 * @param    boolean    $flag     Set true to flag current cache item as updating
+	 *
+	 * @return    void
+	 */
+	static function setUpdatingFlag($id, $group, $flag){
+		// Get Joomla cache instance to store the updating flag variable with a lifetime of 5 years
+		$cacheUpdatingFlag = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
+
+		// Set flag
+		$cacheUpdatingFlag->store($flag, "CacheHelper-UpdatingFlag-$group-$id");
+	}
+
+	/**
+	 * Get the cache item updating flag
+	 *
+	 * @param    string     $id       Cache item id
+	 * @param    string     $group    Cache group name
+	 *
+	 * @return    boolean    Updating flag value
+	 */
+	static function getUpdatingFlag($id, $group){
+		// Get Joomla cache instance to store the updating flag variable with a lifetime of 5 years
+		$cacheUpdatingFlag = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
+
+		// Get/return flag
+		return (boolean)$cacheUpdatingFlag->get("CacheHelper-UpdatingFlag-$group-$id");
+	}
+
+	/**
+	 * Check if a cache item is undefined
+	 *
+	 * @param    string     $id       Cache item id
+	 * @param    string     $group    Cache group name
 	 *
 	 * @return    boolean
 	 */
-	static function updating($id, $group, $flag = null){
-		// Get Joomla cache instance with 5 years lifetime
-		$cache1 = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
-		
-		// Set flag
-		if(isset($flag)) $cache1->store($flag, "CacheHelper-Updating-Flag-$group-$id");
-		
-		// Get/return flag
-		return $cache1->get("CacheHelper-Updating-Flag-$group-$id");
+	static function isUndefined($id, $group){
+		// Get Joomla cache instance to store lifetime variable with a lifetime of 5 years
+		$cacheLifetime = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
+
+		// If lifetime variable is not set then the cache item can be considered as undefined
+		return ($cacheLifetime->get("CacheHelper-Lifetime-$group-$id") === false) ? true : false;
 	}
-	
+
+	/**
+	 * Remove a cache item
+	 *
+	 * @param    string     $id       Cache item id
+	 * @param    string     $group    Cache group name
+	 *
+	 * @return    boolean
+	 */
+	static function remove($id, $group){
+		// Get Joomla cache instance
+		$cache = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));
+
+		// Remove lifetime
+		$cache->remove("CacheHelper-Lifetime-$group-$id", $group);
+
+		// Remove updating flag
+		$cache->remove("CacheHelper-UpdatingFlag-$group-$id", $group);
+
+		// Remove dummy data
+		$cache->remove("CacheHelper-DummyData-$group-$id", $group);
+
+		// Remove data
+		$cache->remove($id, $group);
+	}
 }
 
 
