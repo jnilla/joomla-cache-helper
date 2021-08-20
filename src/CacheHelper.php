@@ -26,14 +26,14 @@ class CacheHelper{
 		// Get cached data
 		$data = CacheHelper::get($id, $group, $waitIfUpdating, $maxWait, $waitIfUndefined);
 
+		// Return data if isTimeout is true
+		if($data['isTimeout']) return $data;
+
 		// Return data if cache item is defined and is not stale
 		if(!$data['isUndefined'] && !$data['isStale']) return $data;
 
-		// Check if we can return data while updating
-		if(self::getUpdatingFlag($id, $group)){
-			// Return data if $waitIfUpdating or $waitIfUndefined are false
-			if((!$waitIfUpdating || !$waitIfUndefined)) return $data;
-		}
+		// Check if we can return data while updating and $waitIfUpdating or $waitIfUndefined are false
+		if(self::getUpdatingFlag($id, $group) && (!$waitIfUpdating || !$waitIfUndefined)) return $data;
 
 		// Flag cache as updating
 		self::setUpdatingFlag($id, $group, true);
@@ -66,21 +66,28 @@ class CacheHelper{
 			'isUndefined' => true,
 			'isStale' => false,
 			'isUpdating' => false,
+			'isTimeout' => false,
 			'data' => ''
 		];
+		$isTimeout = null;
 
 		// If updating flag is true apply a delay if required
 		// Note: Don't add code before this statement because its values may change after wait time.
 		if(($waitIfUpdating || ($waitIfUndefined && self::isUndefined($id, $group))) && self::getUpdatingFlag($id, $group)){
-			$startTime = microtime(true); // DEBUG
-			// YOUR CODE HERE
 			for ($i = 0; $i <= $maxWait*10; $i++){
 				usleep(100000);
-				if(!self::getUpdatingFlag($id, $group)) break;
+				if(!self::getUpdatingFlag($id, $group)){
+					$isTimeout = false;
+					break;
+				}
 			}
+			if(!isset($isTimeout)) $isTimeout = true;
 			// If max wait time is reached force updating flag to false
 			self::setUpdatingFlag($id, $group, false);
 		}
+
+		// Save timout flag
+		$cacheItem['isTimeout'] = isset($isTimeout) ? $isTimeout : false;
 
 		// Get Joomla cache instance to store lifetime variable with a lifetime of 5 years
 		$cacheLifetime = new JCache(array('caching' => true, 'defaultgroup' => $group, 'lifetime' => 2628000));

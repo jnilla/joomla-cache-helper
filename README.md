@@ -49,10 +49,10 @@ The proxy function:
 
 ```
 $cache = CacheHelper::proxy(
-	'idHere', // Id
-	'groupNameHere', // Group
+	'idHere', // Cache Id
+	'groupNameHere', // Cache Group
 	function(){return 'Some string data here';}, // Callback that returns the data to cache
-	6, // Lifetime
+	6, // Cache Lifetime
 	true, // Wait if updating
 	15, // Max wait time
 	true // Wait if undefined
@@ -79,10 +79,10 @@ Example with remote data:
 
 ```
 $cache = CacheHelper::callback(
-	'idHere', // Id
-	'groupNameHere', // Group
+	'idHere', // Cache Id
+	'groupNameHere', // Cache Group
 	function(){return file_get_contents('https://jsonplaceholder.typicode.com/todos');}, // Callback that returns the data to cache
-	6, // Lifetime
+	6, // Cache Lifetime
 	true, // Wait if updating
 	15, // Max wait time
 	true // Wait if undefined
@@ -143,6 +143,14 @@ If `$waitIfUpdating` is `false` the first user to use the `proxy` function trigg
 This case is useful if you don't want to lock almost everyone on a waiting period the firt time the remote data is requested and it doens't matter some users get the previos stale cache item.
 
 This behavior helps to aliviate server RAM usage because requests/CPU Threads live shorter but bandwith may be wasted is stale data is useless.
+
+**Case 5 - Update operation takes too long:**
+
+5 users request remote data using the `proxy` function at the same but the remote operation takes too long.
+
+If `$waitIfUpdating` or `$waitIfUndefined` are `true` the first user to use the `proxy` function triggers the `isUpdading` flag and everyone gets to wait. If `$maxWait` is reached the `isUpdading` flag is set to `true` and everyone gets a stale cache item if any or an empty one.
+
+This prevents too long or infinite wait times for eveyone.
 
 ## License
 
