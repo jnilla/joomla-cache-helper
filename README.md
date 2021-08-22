@@ -1,6 +1,6 @@
 # joomla-cache-helper
 
-Joomla cache facade for easier usage.
+A Joomla cache helper for easier usage.
 
 This helper is build on top of the native Joomla cache support. We implemented a simpler API and added few extra features to make the helper practical. 
 
